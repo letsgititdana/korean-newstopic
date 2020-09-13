@@ -149,10 +149,17 @@ if __name__ == '__main__':
             wordcounts.append({'articleidx':index, 'wordidx':word2idx[word], 'count':count})
 
         sys.stdout.write('\r')
-        sys.stdout.write(f">>> progress : [{('-'*(int(index / n_url * 100) // 5)).ljust(20)}]")
+        sys.stdout.write(f">>> progress : [{('='*(int((index+1)/n_url*100) // 5)).ljust(20)}]")
         sys.stdout.flush()
         
+
     print('\n')
+    print('>>> Saving data into csv files')
     wordcounts = pd.DataFrame(wordcounts)
     wordcounts.to_csv(os.path.join(DIR_NAME, 'wordcounts.csv'), index=False)
+    idx2article = pd.DataFrame({'article':article2idx.keys()}, index=article2idx.values())
+    idx2word = pd.DataFrame({'word':word2idx.keys()}, index=word2idx.values())
+    idx2article.to_csv(os.path.join(DIR_NAME, 'idx2article.csv'))
+    idx2word.to_csv(os.path.join(DIR_NAME, 'idx2word.csv'))
+    print('>>> Process finished!')
     
