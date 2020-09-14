@@ -6,13 +6,15 @@ import datetime
 import re
 import pandas as pd
 from collections import Counter, defaultdict
-from bs4 import BeautifulSoup as bs
+from bs4 import BeautifulSoup
 from konlpy.tag import Mecab
+
 
 """
 Python script to generate sparse 2-dimensional data of words by article
 encoding : UTF-8
 """
+
 
 parser = argparse.ArgumentParser(description='Script to generate sparse article * words data')
 parser.add_argument('geturllist', 
@@ -28,7 +30,7 @@ args = parser.parse_args()
 paper_publishers = ['한국일보','문화일보','동아일보','서울신문','세계일보','경향신문','국민일보','중앙일보','한겨레','조선일보']
 
 
-def make_pageurl(category, pagenum, date):
+def pageurl_template(category, pagenum, date):
     """
     Function to return formatted URL given category, page number, date
     """
@@ -38,7 +40,7 @@ def make_pageurl(category, pagenum, date):
 
 def date_formatting(date):
     """
-    convert datetime.date object into yyyymmdd format string
+    Convert datetime.date object into yyyymmdd format string
     """
     year = str(date.year)
     month = str(date.month).rjust(2, '0')
@@ -65,6 +67,60 @@ def get_datelist(start, end):
     return list(map(date_formatting, date_list))
 
 
+def get_validurl(date):
+    """
+    Get list of valid URL of articles that corresponds to certain input date
+    """
+    pagenum = 1
+    urllist = []
+
+    while True:
+        response = requests.get(pageurl_template(category, pagenum, date))
+        parsed = BeautifulSoup(response.text, 'html.parser')
+        body = parsed.find('div', attrs={'class':'box_etc'})
+
+        if body.select('p.txt_none'):
+            break
+        else:
+            articles = body.select('div.cont_thumb')
+            for tag in articles:
+                publisher = tag.find('span', attrs={'class':'info_news'}).get_text().split()[0]
+                if publisher in paper_publishers:
+                    urllist.append(tag.find('a', attrs={'class':'link_txt'})['href'])
+            pagenum += 1
+        
+    return urllist
+
+
+def extract_nouns(url):
+    """
+    Extract nouns from the body text of article that corresponds to input URL using konlpy.Mecab
+    """
+    response = requests.get(url)
+    parsed = BeautifulSoup(response.text, 'html.parser')
+    body = parsed.find('div', attrs={'class':'news_view'})
+    text_tags = body.find_all('p', attrs={'dmcf-ptype':'general'})
+    text = ' '.join([tag.get_text().strip() 
+                    for tag in text_tags 
+                    if '@' not in tag.get_text() and len(tag.get_text()) > 8])
+
+    pattern = re.compile("[\[(].{1,20}[\])]")
+    words = [word 
+            for word in mecab.nouns(pattern.sub('', text)) 
+            if len(word) > 1]
+    
+    pattern = re.compile('\d{12,}')
+    articleId = pattern.findall(url)[0]
+    articleidx = article2idx[articleId]
+
+    result = []
+    wordcount = Counter(words)
+    for word, count in wordcount.items():
+        result.append({'articleidx':articleidx, 'wordidx':word2idx[word], 'count':count})
+
+    return result    
+
+
 if __name__ == '__main__':
 
     DIR_HOME = './dirs'
@@ -78,35 +134,18 @@ if __name__ == '__main__':
 
     if args.geturllist == 'y':
         
-        urllist = []
         os.mkdir(DIR_NAME)
         datelist = get_datelist(start, end)
         assert category, 'Category of articles is not specified'
-        print(f'>>> Saving valid URLs of articles of category ({category}) ranges from {start[:4]}-{start[4:6]}-{start[6:]} to {end[:4]}-{end[4:6]}-{end[6:]} into urllist')
+        print(f'>>> Saving valid URLs into urllist: {category}, from {start[:4]}-{start[4:6]}-{start[6:]} to {end[:4]}-{end[4:6]}-{end[6:]}')
 
+        urllist = []
         for date in datelist:
-            pagenum = 1
-            
-            while True:
-                response = requests.get(make_pageurl(category, pagenum, date))
-                parsed = bs(response.text, 'html.parser')
-                body = parsed.find('div', attrs={'class':'box_etc'})
-
-                if body.select('p.txt_none'):
-                    break
-                else:
-                    articles = body.select('div.cont_thumb')
-                    for tag in articles:
-                        publisher = tag.find('span', attrs={'class':'info_news'}).get_text().split()[0]
-                        if publisher in paper_publishers:
-                            urllist.append(tag.find('a', attrs={'class':'link_txt'})['href'])
-
-                    pagenum += 1
+            urllist += get_validurl(date)
             
             sys.stdout.write('\r')
             sys.stdout.write(f'>>> Successfully scraped valid URLs of {date[:4]}-{date[4:6]}-{date[6:]}')
             sys.stdout.flush()
-
 
         print('\n')
         with open(os.path.join(DIR_NAME, 'urllist.txt'), 'w') as f:
@@ -120,36 +159,17 @@ if __name__ == '__main__':
         urls = f.read()
 
     urllist = urls.split()
-    article2idx = {}
+    article2idx = defaultdict(lambda: len(article2idx))
     word2idx = defaultdict(lambda: len(word2idx))
     mecab = Mecab()
     wordcounts = []
     n_url = len(urllist)
 
-    for index, url in enumerate(urllist):
-        response = requests.get(url)
-        parsed = bs(response.text, 'html.parser')
-        body = parsed.find('div', attrs={'class':'news_view'})
-        text = body.find_all('p', attrs={'dmcf-ptype':'general'})
-        extracted = ' '.join([tag.get_text().strip() 
-                            for tag in text 
-                            if '@' not in tag.get_text() and len(tag.get_text()) > 8])
-
-        pattern = re.compile("[\[(].{1,20}[\])]")
-        words = [word 
-                for word in mecab.nouns(pattern.sub('', extracted)) 
-                if len(word) > 1]
+    for url in urllist:
+        wordcounts += extract_nouns(url)
         
-        pattern = re.compile('\d{12,}')
-        articleId = pattern.findall(url)[0]
-        article2idx[articleId] = index
-        
-        wordcount = Counter(words)
-        for word, count in wordcount.items():
-            wordcounts.append({'articleidx':index, 'wordidx':word2idx[word], 'count':count})
-
         sys.stdout.write('\r')
-        sys.stdout.write(f">>> progress : [{('='*(int((index+1)/n_url*100) // 5)).ljust(20)}]")
+        sys.stdout.write(f">>> progress : [{('='*(int((len(article2idx)+1)/n_url*100) // 5)).ljust(20)}]")
         sys.stdout.flush()
         
 
