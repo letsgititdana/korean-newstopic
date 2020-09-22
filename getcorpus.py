@@ -1,22 +1,15 @@
-import os
-import sys
-import requests
-import argparse
-import datetime
-import re
-import pandas as pd
-from collections import Counter, defaultdict
+import os, sys, requests, argparse, datetime, re, ray, time, gensim, pickle
 from bs4 import BeautifulSoup
 from konlpy.tag import Mecab
 
 
 """
-Python script to generate sparse 2-dimensional data of words by article
+Python script to generate corpus 
 encoding : UTF-8
 """
 
 
-parser = argparse.ArgumentParser(description='Script to generate sparse article * words data')
+parser = argparse.ArgumentParser(description='Script to generate corpus as a lists of words')
 parser.add_argument('geturllist', 
                     choices=['y','n'],
                     help="Whether to scrape list of valid URLS prior to word extraction. Set as 'y' for the first execution")
@@ -28,14 +21,6 @@ parser.add_argument('-e', '--end-date',  metavar='', help='Final date of publish
 args = parser.parse_args()
 
 paper_publishers = ['한국일보','문화일보','동아일보','서울신문','세계일보','경향신문','국민일보','중앙일보','한겨레','조선일보']
-
-
-def pageurl_template(category, pagenum, date):
-    """
-    Function to return formatted URL given category, page number, date
-    """
-    assert len(str(date)) == 8, 'Invalid input date format'
-    return f"https://news.daum.net/breakingnews/{category}?page={pagenum}&regDate={date}"
 
 
 def date_formatting(date):
@@ -67,7 +52,16 @@ def get_datelist(start, end):
     return list(map(date_formatting, date_list))
 
 
-def get_validurl(date):
+def pageurl_template(category, pagenum, date):
+    """
+    Function to return formatted URL given category, page number, date
+    """
+    assert len(str(date)) == 8, 'Invalid input date format'
+    return f"https://news.daum.net/breakingnews/{category}?page={pagenum}&regDate={date}"
+
+
+@ray.remote
+def get_validurl(category, date):
     """
     Get list of valid URL of articles that corresponds to certain input date
     """
@@ -92,6 +86,7 @@ def get_validurl(date):
     return urllist
 
 
+@ray.remote
 def extract_nouns(url):
     """
     Extract nouns from the body text of article that corresponds to input URL using konlpy.Mecab
@@ -105,20 +100,11 @@ def extract_nouns(url):
                     if '@' not in tag.get_text() and len(tag.get_text()) > 8])
 
     pattern = re.compile("[\[(].{1,20}[\])]")
-    words = [word 
+    nouns = [word 
             for word in mecab.nouns(pattern.sub('', text)) 
             if len(word) > 1]
-    
-    pattern = re.compile('\d{12,}')
-    articleId = pattern.findall(url)[0]
-    articleidx = article2idx[articleId]
 
-    result = []
-    wordcount = Counter(words)
-    for word, count in wordcount.items():
-        result.append({'articleidx':articleidx, 'wordidx':word2idx[word], 'count':count})
-
-    return result    
+    return nouns
 
 
 if __name__ == '__main__':
@@ -130,56 +116,41 @@ if __name__ == '__main__':
     start = args.start_date
     end = args.end_date
     DIR_NAME = os.path.join(DIR_HOME, f"{category}-{start}-{end}")
+    time_started = time.time()
+    ray.init()
 
 
     if args.geturllist == 'y':
         
-        os.mkdir(DIR_NAME)
+        if not os.path.exists(DIR_NAME):
+            os.mkdir(DIR_NAME)
         datelist = get_datelist(start, end)
         assert category, 'Category of articles is not specified'
-        print(f'>>> Saving valid URLs into urllist: {category}, from {start[:4]}-{start[4:6]}-{start[6:]} to {end[:4]}-{end[4:6]}-{end[6:]}')
+        print(f"\nSaving valid URLs into urllist: {category}, from {start[:4]}-{start[4:6]}-{start[6:]} to {end[:4]}-{end[4:6]}-{end[6:]}")
 
-        urllist = []
-        for date in datelist:
-            urllist += get_validurl(date)
-            
-            sys.stdout.write('\r')
-            sys.stdout.write(f'>>> Successfully scraped valid URLs of {date[:4]}-{date[4:6]}-{date[6:]}')
-            sys.stdout.flush()
+        joblist = [get_validurl.remote(category, date) for date in datelist]
+        urllist = ray.get(joblist)
 
-        print('\n')
         with open(os.path.join(DIR_NAME, 'urllist.txt'), 'w') as f:
-            for url in urllist:
-                f.write(url + '\n')
-
+            for urls in urllist:
+                for url in urls:
+                    f.write(url + '\n')
+        print(f">>> List of valid URLs is saved as {DIR_NAME + '/urllist.txt'}\n")
     
-    print(">>> Extracting words from articles in the urllist")
 
+    print("Extracting words from articles in the urllist")
     with open(os.path.join(DIR_NAME, 'urllist.txt'), 'r') as f:
         urls = f.read()
 
     urllist = urls.split()
-    article2idx = defaultdict(lambda: len(article2idx))
-    word2idx = defaultdict(lambda: len(word2idx))
     mecab = Mecab()
-    wordcounts = []
-    n_url = len(urllist)
+    joblist = [extract_nouns.remote(url) for url in urllist]
+    corpus = ray.get(joblist)
 
-    for url in urllist:
-        wordcounts += extract_nouns(url)
-        
-        sys.stdout.write('\r')
-        sys.stdout.write(f">>> progress : [{('='*(int((len(article2idx)+1)/n_url*100) // 5)).ljust(20)}]")
-        sys.stdout.flush()
-        
+    with open(os.path.join(DIR_NAME, 'corpus'), 'wb') as f:
+        pickle.dump(corpus, f)
 
-    print('\n')
-    print('>>> Saving data into csv files')
-    wordcounts = pd.DataFrame(wordcounts)
-    wordcounts.to_csv(os.path.join(DIR_NAME, 'wordcounts.csv'), index=False)
-    idx2article = pd.DataFrame({'article':article2idx.keys()}, index=article2idx.values())
-    idx2word = pd.DataFrame({'word':word2idx.keys()}, index=word2idx.values())
-    idx2article.to_csv(os.path.join(DIR_NAME, 'idx2article.csv'))
-    idx2word.to_csv(os.path.join(DIR_NAME, 'idx2word.csv'))
-    print('>>> Process finished!')
+    minutes, seconds = list(map(int, divmod(time.time() - time_started, 60)))
+    print(f">>> Corpus of articles is saved as {DIR_NAME + '/corpus'}")
+    print(f">>> Total elapsed time : {str(minutes).rjust(3)}m {str(seconds).rjust(2,'0')}s")
     
