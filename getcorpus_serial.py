@@ -61,12 +61,12 @@ def get_datelist(start, end):
     return list(map(date_formatting, date_list))
 
 
-def get_validurl(date):
+def get_url_title(category, date):
     """
-    Get list of valid URL of articles that corresponds to certain input date
+    Get list of valid URL of articles and their title that corresponds to certain input date
     """
     pagenum = 1
-    urllist = []
+    url_title = dict({'urls':[], 'titles':[]})
 
     while True:
         response = requests.get(pageurl_template(category, pagenum, date))
@@ -80,16 +80,20 @@ def get_validurl(date):
             for tag in articles:
                 publisher = tag.find('span', attrs={'class':'info_news'}).get_text().split()[0]
                 if publisher in paper_publishers:
-                    urllist.append(tag.find('a', attrs={'class':'link_txt'})['href'])
+                    a_tag = tag.find('a')
+                    url_title['urls'].append(a_tag['href'])
+                    url_title['titles'].append(a_tag.get_text())
             pagenum += 1
         
-    return urllist
+    return url_title
+
 
 
 def extract_nouns(url):
     """
     Extract nouns from the body text of article that corresponds to input URL using konlpy.Mecab
     """
+    time.sleep(0.05)
     response = requests.get(url)
     parsed = BeautifulSoup(response.text, 'html.parser')
     body = parsed.find('div', attrs={'class':'news_view'})
@@ -97,7 +101,6 @@ def extract_nouns(url):
     text = ' '.join([tag.get_text().strip() 
                     for tag in text_tags 
                     if '@' not in tag.get_text() and len(tag.get_text()) > 8])
-
     pattern = re.compile("[\[(].{1,20}[\])]")
     nouns = [word 
             for word in mecab.nouns(pattern.sub('', text)) 
@@ -138,6 +141,10 @@ if __name__ == '__main__':
         with open(os.path.join(DIR_NAME, 'urllist.txt'), 'w') as f:
             for url in urllist:
                 f.write(url + '\n')
+
+        with open(os.path.join(DIR_NAME, 'titlelist.txt'), 'w') as f:
+            for title in titlelist:
+                f.write(title + '\n')
 
 
     print("Extracting words from articles in the urllist")

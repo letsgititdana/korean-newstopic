@@ -1,4 +1,4 @@
-import os, sys, requests, argparse, datetime, re, ray, time, gensim, pickle
+import os, sys, requests, argparse, datetime, re, ray, time, pickle
 from bs4 import BeautifulSoup
 from konlpy.tag import Mecab
 
@@ -61,12 +61,12 @@ def pageurl_template(category, pagenum, date):
 
 
 @ray.remote
-def get_validurl(category, date):
+def get_url_title(category, date):
     """
-    Get list of valid URL of articles that corresponds to certain input date
+    Get list of valid URL of articles and their title that corresponds to certain input date
     """
     pagenum = 1
-    urllist = []
+    url_title = dict({'urls':[], 'titles':[]})
 
     while True:
         response = requests.get(pageurl_template(category, pagenum, date))
@@ -80,10 +80,12 @@ def get_validurl(category, date):
             for tag in articles:
                 publisher = tag.find('span', attrs={'class':'info_news'}).get_text().split()[0]
                 if publisher in paper_publishers:
-                    urllist.append(tag.find('a', attrs={'class':'link_txt'})['href'])
+                    a_tag = tag.find('a')
+                    url_title['urls'].append(a_tag['href'])
+                    url_title['titles'].append(a_tag.get_text())
             pagenum += 1
         
-    return urllist
+    return url_title
 
 
 @ray.remote
@@ -91,6 +93,7 @@ def extract_nouns(url):
     """
     Extract nouns from the body text of article that corresponds to input URL using konlpy.Mecab
     """
+    time.sleep(0.05)
     response = requests.get(url)
     parsed = BeautifulSoup(response.text, 'html.parser')
     body = parsed.find('div', attrs={'class':'news_view'})
@@ -117,25 +120,32 @@ if __name__ == '__main__':
     end = args.end_date
     DIR_NAME = os.path.join(DIR_HOME, f"{category}-{start}-{end}")
     time_started = time.time()
-    ray.init()
+    ray.init(ignore_reinit_error=True)
 
 
     if args.geturllist == 'y':
-        
         if not os.path.exists(DIR_NAME):
             os.mkdir(DIR_NAME)
         datelist = get_datelist(start, end)
         assert category, 'Category of articles is not specified'
         print(f"\nSaving valid URLs into urllist: {category}, from {start[:4]}-{start[4:6]}-{start[6:]} to {end[:4]}-{end[4:6]}-{end[6:]}")
 
-        joblist = [get_validurl.remote(category, date) for date in datelist]
-        urllist = ray.get(joblist)
+        joblist = [get_url_title.remote(category, date) for date in datelist]
+        url_titles = ray.get(joblist)
+        urllist = []
+        titlelist = []
+        for url_title in url_titles:
+            urllist += url_title['urls']
+            titlelist += url_title['titles']
 
         with open(os.path.join(DIR_NAME, 'urllist.txt'), 'w') as f:
-            for urls in urllist:
-                for url in urls:
-                    f.write(url + '\n')
+            for url in urllist:
+                f.write(url + '\n')
         print(f">>> List of valid URLs is saved as {DIR_NAME + '/urllist.txt'}\n")
+
+        with open(os.path.join(DIR_NAME, 'titlelist.txt'), 'w') as f:
+            for title in titlelist:
+                f.write(title + '\n')
     
 
     print("Extracting words from articles in the urllist")
