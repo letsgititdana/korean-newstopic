@@ -165,7 +165,10 @@ if __name__ == '__main__':
         sys.stdout.write('\r')
         sys.stdout.write(f">>> progress : [{('='*(int(idx/n_url*100) // 5)).ljust(20)}]")
         sys.stdout.flush()
-        
+
+    with open(os.path.join(DIR_NAME, 'corpus'), 'wb') as f:
+        pickle.dump(corpus, f)
+
     print('\n')
     minutes, seconds = list(map(int, divmod(time.time() - time_started, 60)))
     print(f">>> Corpus of articles is saved as {DIR_NAME + '/corpus'}")
