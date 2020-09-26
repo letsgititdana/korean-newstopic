@@ -1,4 +1,4 @@
-import os, sys, requests, argparse, datetime, re, time
+import os, sys, requests, argparse, datetime, re, time, pickle
 from collections import Counter, defaultdict
 from bs4 import BeautifulSoup
 from konlpy.tag import Mecab
@@ -93,7 +93,7 @@ def extract_nouns(url):
     """
     Extract nouns from the body text of article that corresponds to input URL using konlpy.Mecab
     """
-    time.sleep(0.05)
+    time.sleep(1)
     response = requests.get(url)
     parsed = BeautifulSoup(response.text, 'html.parser')
     body = parsed.find('div', attrs={'class':'news_view'})
