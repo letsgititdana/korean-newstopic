@@ -1,0 +1,73 @@
+{% load static %}
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title> Korean News NLP Project </title>
+<meta name="keywords" content="" />
+<meta name="description" content="" />
+<link href="http://fonts.googleapis.com/css?family=Source+Sans+Pro:200,300,400,600,700,900|Quicksand:400,700|Questrial" rel="stylesheet" />
+<link href="{% static 'default.css' %}" rel="stylesheet" type="text/css" media="all" />
+<link href="{% static 'fonts.css' %}" rel="stylesheet" type="text/css" media="all" />
+
+
+<!--[if IE 6]><link href="{% static 'default_ie6.css' %}" rel="stylesheet" type="text/css" /><![endif]-->
+
+</head>
+<body>
+<div id="header-wrapper">
+	<div id="header" class="container">
+		<div id="logo">
+        	<span class="icon icon-book"></span>
+			<h1><a href="{% url 'index' %}"> Korean News Scrapbook </a></h1>
+		</div>
+		<div id="menu">
+			<ul>
+				<li class="active"><a href="{% url 'index' %}" accesskey="1" title=""> 프로젝트 소개 </a></li>
+				<li><a href="{% url 'news2020' %}" accesskey="2" title="">2020</a></li>
+				<li><a href="{% url 'news2019' %}" accesskey="3" title="">2019</a></li>
+				<li><a href="{% url 'news2018' %}" accesskey="4" title="">2018</a></li>
+				<li><a href="{% url 'news2017' %}" accesskey="5" title="">2017</a></li>
+			</ul>
+		</div>
+	</div>
+</div>
+<div class="wrapper">
+	<!-- <div id="banner" class="container"><img src="{% static 'images/banner.jpg' %}" width="1200" height="500" alt="" /></div> -->
+	<div id="welcome" class="container">
+    	
+		<div class="title">
+	  		<h2> 당신을 위한 뉴스 스크랩북 </h2>
+		</div>
+		<p>과거의 뉴스들은 잘 노출되지 않아 특별한 노력이 없으면 잊혀져서 그저 쌓여있기 쉽습니다. 이 프로젝트는 과거의 이슈들이 잊혀지지 않도록, 그래서 현재의 흐름을 더 잘 이해할 수 있도록, 뉴스를 게시하는 새로운 방식을 제언하기 위해 시작했습니다.</p>
+		<p>연도별, 월별 가장 이슈가 되었던 뉴스 토픽을 자동으로 생성해주고, 나아가 토픽과 가장 연관된 뉴스 기사를 제시합니다. </p>
+		<p>누군가 당신을 위해 공들여 만든 뉴스 스크랩북처럼, 과거부터 현재까지 이슈를 찾지 않아도 알아서 정리하고 보여주는 웹 어플리케이션입니다. </p>
+		<br> <br> <br> <br> <br>
+	</div>
+
+<div id="footer">
+	<div class="container" style="text-align: center;">
+		<div class="fbox1">
+			<span class="icon icon-user icon-7x"></span>
+			<span>
+				<h3>Sunsik Kim</h3> <br>
+				siksicking@gmail.com
+			</span>
+		</div>
+		<div class="fbox1">
+			<span class="icon icon-user icon-7x"></span>
+			<span>
+				<h3>Jiwon Yu</h3> <br>
+				ryudana@gmail.com
+			</span>
+		</div>
+	</div>
+</div>
+</div>
+
+<div id="copyright">
+	<p>&copy; Untitled. All rights reserved. | Design by <a href="http://templated.co" rel="nofollow">TEMPLATED</a>.</p>
+</div>
+
+</body>
+</html>
