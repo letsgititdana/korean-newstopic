@@ -93,7 +93,7 @@ def extract_nouns(url):
     """
     Extract nouns from the body text of article that corresponds to input URL using konlpy.Mecab
     """
-    time.sleep(1)
+    time.sleep(0.05)
     response = requests.get(url)
     parsed = BeautifulSoup(response.text, 'html.parser')
     body = parsed.find('div', attrs={'class':'news_view'})
@@ -130,8 +130,11 @@ if __name__ == '__main__':
         print(f"Saving valid URLs into urllist: {category}, from {start[:4]}-{start[4:6]}-{start[6:]} to {end[:4]}-{end[4:6]}-{end[6:]}")
 
         urllist = []
+        titlelist = []
         for date in datelist:
-            urllist += get_validurl(date)
+            url_title = get_url_title(category, date)
+            urllist += url_title['urls']
+            titlelist += url_title['titles']
             
             sys.stdout.write('\r')
             sys.stdout.write(f'>>> Successfully scraped valid URLs of {date[:4]}-{date[4:6]}-{date[6:]}')

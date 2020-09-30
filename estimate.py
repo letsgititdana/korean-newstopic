@@ -39,19 +39,19 @@ def vocabs_by_topic(model, dictionary, topn=20):
     for k in range(model.num_topics):
         topn_vocabs = model.get_topic_terms(k, topn)
         triplets += [(k, dictionary.id2token[vocainfo[0]] , vocainfo[1]) for vocainfo in topn_vocabs]
-    return pd.DataFrame(triplets, columns=['topic', 'vocaidx', 'proportion'])
+    return pd.DataFrame(triplets, columns=['topic', 'vocabulary', 'proportion'])
 
 
 if __name__ == '__main__':
 
     category = args.category
-    start = args.start_date
-    end = args.end_date
+    start_date = args.start_date
+    end_date = args.end_date
     n_topics = args.num_topics
     n_articles = args.top_na
     n_vocabs = args.top_nv
 
-    DIR_NAME = os.path.join('./dirs', f"{category}-{start}-{end}")
+    DIR_NAME = os.path.join('./dirs', f"{category}-{start_date}-{end_date}")
     with open(os.path.join(DIR_NAME, 'corpus'), 'rb') as f:
         corpus = pickle.load(f)
     dictionary = Dictionary(corpus)
@@ -62,23 +62,21 @@ if __name__ == '__main__':
         print("\nEstimating parameters of LDA model")
         start = time.time()
         model = LdaModel(gensim_corpus, id2word=dictionary, num_topics=n_topics)
-        model.save(datapath(f"{category}-{start}-{end}"))
+        model.save(datapath(f"{category}-{start_date}-{end_date}"))
         minute, second = list(map(int, divmod(time.time() - start, 60)))
         print(f">>> Elapsed time : {minute}m {second}s")
 
 
     print(f"\nSaving DataFrame of top {n_articles} relevant articles per topic and {n_vocabs} vocabularies from each topic")
-    model = LdaModel.load(datapath(f"{category}-{start}-{end}"))
+    model = LdaModel.load(datapath(f"{category}-{start_date}-{end_date}"))
     start = time.time()
 
     topn_articles = docs_by_topic(model, gensim_corpus, n_articles)
-    topn_articles.to_csv(os.path.join(DIR_NAME, 'topn_articles.csv'), index=False)
-    with open(os.path.join(DIR_NAME, 'topn_articles'), 'wb') as f:
+    with open(os.path.join(DIR_NAME, f"topn_articles_{start_date[:6]}"), 'wb') as f:
         pickle.dump(topn_articles, f)
 
     topn_vocabs = vocabs_by_topic(model, dictionary, n_vocabs)
-    topn_vocabs.to_csv(os.path.join(DIR_NAME, 'topn_vocabs.csv'), index=False)
-    with open(os.path.join(DIR_NAME, 'topn_vocabs'), 'wb') as f:
+    with open(os.path.join(DIR_NAME, f"topn_vocabs_{start_date[:6]}"), 'wb') as f:
         pickle.dump(topn_vocabs, f)
 
     minute, second = list(map(int, divmod(time.time() - start, 60)))
