@@ -58,3 +58,40 @@ python estimate.py y -c politics -s 20200801 -e 20200831 -k 20 -na 20 -nv 20
 이를 해결하기 위한 아래와 같은 방법들을 생각했습니다. 
 1. LDA를 validate하는 데 사용되는 log perplexity에 기반해 토픽 개수를 계속 늘려보며 최적의 토픽 개수를 정해볼 수 있습니다. 이 경우, 실제 서비스에는 어떤 토픽을 노출시켜야 할지는 추가로 고민해봐야 합니다.
 2. 여러 토픽이 혼합돼서 한 문서가 생성된다는 LDA의 가정대로, 여러 토픽을 조합해 하나의 세부 주제를 만들고, 이 세부 주제를 기준으로 기사들을 노출시키는 방법이 있습니다. 이를 위해 기사들을 토픽 별 할당 확률 벡터를 기준으로 한번 더 clustering하는 방법을 생각해 보고 있습니다.
+
+# 3. 웹 페이지 구축(Django) 및 배포(AWS EC2)
+
+데이터 분석 결과가 실제로 활용될 수 있도록 웹서비스를 구축하고 배포했습니다. 웹사이트 구축을 위해 Python 기반의 무료 오픈소스 웹 애플리케이션 프레임워크인 Django를 채택했습니다. Python 언어를 기반으로 하기에 빠른 개발 속도와 높은 확장성 및 코드 완성도를 기대했습니다.
+
+장고는 MVT 패턴을 적용하여 효과적으로 앱 애플리케이션을 개발할 수 있도록 도와줍니다. Model에 데이터 클래스를 정의하고, View에 프로그램의 로직을 작성하고, Templates 폴더에 UI에 대한 템플릿 문서를 작성합니다. 본 Django 프로젝트 구조는 아래와 같습니다.
+
+![django_project_structure](misc/django_project_structure.png)
+
+특히 views.py 에는 static 폴더에 저장된 토픽 모델링 결과 데이터를 가져와서 적절한 가공을 거쳐 웹 페이지에 게시되는 결과를 만들어내는 함수들이 정의되어있습니다. 각 함수 하나가 하나의 View를 정의하며, 각 View는 HTTP Request를 입력 파라미터로 받아들이고, HTTP Response를 리턴합니다. 본 웹사이트 구축을 위해 정의된 함수 목록은 아래와 같으며, 상세 코드를 간단하게 설명으로 대체했습니다.
+
+```python
+def index(request):
+    return render(request,'index.html')
+ 
+def get_vocabs(topn_vocabs):
+  # 1년 전체의 토픽 별 상위 20개 단어를 포함한 topn_vocabs 바이너리 파일로부터 각 월, 각 토픽 별 단어로 구분되는 리스트 'vocaidx'를 리턴
+    return vocaidx
+  
+def news2020(request):
+  # news2020.html 템플릿에 get_vocabs(topn_vocabs_2020) 데이터를 contents 딕셔너리에 담아 전달
+    return render(request,'news2020.html', contents)
+
+# def news2020과 같은 형태로 news2019, news2018, news2017 함수 정의
+
+def articles(request, article_id):
+  # HTTP Request 외에도 url로부터 각 토픽에 부여되는 1~20의 임의 id 값인 article_id 정보를 받아서 인자로 전달
+  # 기사 제목 전체를 포함한 titlelist.txt 파일 및 기사 url 전체를 포함한 urllist.txt 파일로부터 특정 토픽에 대한 상위 20개 기사 제목과 url을 가져와서 기사 제목-주소 쌍 데이터를 contents 딕셔너리에 담아 전달
+  return render(request, 'articles.html', contents)
+```
+
+이와 같이 views.py와 templates 문서들을 작성하여 웹사이트 구축을 완성했으며, AWS EC2를 사용해 웹사이트를 배포했습니다. 아래는 각각 2020년 1월을 선택했을 때와, 그 중 첫 번째 토픽을 선택했을 때 실제로 표시되는 페이지입니다. [웹사이트 보기](http://ec2-18-188-86-113.us-east-2.compute.amazonaws.com:8000/NewsApp/index/)
+
+![website_sample](misc/website_sample.png)
+
+![website_sample2](misc/website_sample2.png)
+
